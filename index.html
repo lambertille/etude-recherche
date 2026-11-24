@@ -11,7 +11,7 @@
   page de résultats simulée (clic réel), puis redirection vers le Google Form prérempli.
   La version (A ou B) est tirée au hasard et gardée si la personne recharge la page.
   Mode test : ajouter ?test=1 (et &v=A ou &v=B pour forcer une version, &pos=1 ou &pos=2 pour la position de Velanor,
-  &ecran=serp pour aller directement à la page de résultats).
+  &ecran=serp ou &ecran=choix pour aller directement à un écran).
   En mode test, rien n'est envoyé : l'adresse du formulaire prérempli s'affiche.
   L'adresse du Google Form et les codes des champs sont dans config.js.
 -->
@@ -69,6 +69,8 @@
   .paa div { display: flex; justify-content: space-between; padding: 13px 0; border-top: 1px solid #ebebeb; font-size: 15px; }
   .paa div span:last-child { color: #70757a; }
   .aucun { display: block; margin: 20px auto 30px; background: #fff; border: 1px solid #dadce0; color: #3c4043; border-radius: 4px; padding: 11px 18px; font-size: 14px; cursor: pointer; }
+  .phone.choix { min-height: 0; background: transparent; }
+  .phone.choix .block { background: #fff; border: 1px solid #dadce0; border-radius: 8px; margin: 0 12px 12px; cursor: pointer; }
   .test-info { max-width: 560px; margin: 16px auto; background: #fff8e1; border: 1px solid #e6c06b; padding: 12px; font-size: 13px; word-break: break-all; }
 </style>
 </head>
@@ -193,6 +195,16 @@
       <button class="aucun" data-clic="Aucun résultat">Je ne cliquerais sur aucun de ces résultats</button>
     </main>
   </div>
+</section>
+
+<!-- 5 bis. Choix forcé entre les deux annonces (même ordre que sur la page de résultats) -->
+<section class="ecran" id="e-choix">
+  <div class="carte">
+    <h1>Une dernière question avant la suite</h1>
+    <p>Si vous ne pouviez cliquer que sur l'une de ces deux annonces, laquelle choisiriez-vous ?</p>
+    <p class="petit">Touchez l'annonce de votre choix.</p>
+  </div>
+  <div class="phone choix" id="choix-annonces"></div>
 </section>
 
 <!-- 6. Transition vers le questionnaire -->
@@ -376,7 +388,7 @@ document.getElementById("b-consigne").onclick = () => {
 };
 
 // --- Clic sur un résultat : construction du lien vers le Google Form prérempli ---
-function lienFormulaire(clic, secondes) {
+function lienFormulaire(clic, secondes, choixAnnonce) {
   const F = window.FORMULAIRE;
   const c = F.champs;
   const p = new URLSearchParams();
@@ -389,30 +401,60 @@ function lienFormulaire(clic, secondes) {
   p.set(c.mat2, reponses.maturite[1]);
   p.set(c.mat3, reponses.maturite[2]);
   p.set(c.position, position);
+  p.set(c.choix, choixAnnonce);
   return F.url + "?" + p.toString();
 }
 
+// 1er clic (page de résultats) : on note le résultat et le temps, puis écran de choix forcé
 let dejaClique = false;
+let clicNote = "", secondesNote = 0;
 document.querySelectorAll("[data-clic]").forEach(el => {
   el.addEventListener("click", () => {
     if (dejaClique) return;
     dejaClique = true;
-    const secondes = (performance.now() - debutSerp) / 1000;
-    const url = lienFormulaire(el.dataset.clic, secondes);
-    document.getElementById("lien-suite").href = url;
-    montrer("e-suite");
-    if (TEST) {
-      const t = document.createElement("div");
-      t.className = "test-info";
-      t.textContent = "Mode test : version " + version + ", Velanor en position " + position + ", clic = " + el.dataset.clic + ", " + secondes.toFixed(1) + " s. Lien qui serait ouvert : " + url;
-      document.getElementById("test-url").appendChild(t);
-      return;
-    }
-    memo.url = url;
-    localStorage.setItem(CLE, JSON.stringify(memo));
-    setTimeout(() => { location.href = url; }, 600);
+    clicNote = el.dataset.clic;
+    secondesNote = (performance.now() - debutSerp) / 1000;
+    preparerChoix();
+    montrer("e-choix");
   });
 });
+
+// Écran de choix forcé : copies des deux annonces, dans l'ordre affiché sur la page de résultats
+function preparerChoix() {
+  const boite = document.getElementById("choix-annonces");
+  boite.innerHTML = "";
+  ["annonce-v", "annonce-p"]
+    .map(id => document.getElementById(id))
+    .sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1)
+    .forEach(orig => {
+      const copie = orig.cloneNode(true);
+      copie.removeAttribute("id");
+      copie.removeAttribute("data-clic");
+      copie.querySelectorAll("[id]").forEach(e => e.removeAttribute("id"));
+      copie.dataset.choix = orig.id === "annonce-v" ? "Velanor" : "Plumora";
+      copie.addEventListener("click", () => terminer(copie.dataset.choix));
+      boite.appendChild(copie);
+    });
+}
+
+let dejaChoisi = false;
+function terminer(choixAnnonce) {
+  if (dejaChoisi) return;
+  dejaChoisi = true;
+  const url = lienFormulaire(clicNote, secondesNote, choixAnnonce);
+  document.getElementById("lien-suite").href = url;
+  montrer("e-suite");
+  if (TEST) {
+    const t = document.createElement("div");
+    t.className = "test-info";
+    t.textContent = "Mode test : version " + version + ", Velanor en position " + position + ", clic = " + clicNote + ", " + secondesNote.toFixed(1) + " s, choix forcé = " + choixAnnonce + ". Lien qui serait ouvert : " + url;
+    document.getElementById("test-url").appendChild(t);
+    return;
+  }
+  memo.url = url;
+  localStorage.setItem(CLE, JSON.stringify(memo));
+  setTimeout(() => { location.href = url; }, 600);
+}
 
 // --- Démarrage ---
 if (!TEST && memo.url) {
@@ -428,6 +470,7 @@ if (TEST) {
   if (ecran && document.getElementById("e-" + ecran)) {
     montrer("e-" + ecran);
     if (ecran === "serp") { debutSerp = performance.now(); reponses.maturite = ["3", "3", "3"]; }
+    if (ecran === "choix") { dejaClique = true; clicNote = "(test)"; reponses.maturite = ["3", "3", "3"]; preparerChoix(); }
   }
 }
 </script>
