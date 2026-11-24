@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Étude : recherche en ligne</title>
+<!--
+  Page d'étude du mémoire (M2 Marketing Digital, Université Paris Cité).
+  Déroulé : accueil et consentement, filtre, 3 questions de maturité, consigne,
+  page de résultats simulée (clic réel), puis redirection vers le Google Form prérempli.
+  La version (A ou B) est tirée au hasard et gardée si la personne recharge la page.
+  Mode test : ajouter ?test=1 (et &v=A ou &v=B pour forcer une version,
+  &ecran=serp pour aller directement à la page de résultats).
+  En mode test, rien n'est envoyé : l'adresse du formulaire prérempli s'affiche.
+  L'adresse du Google Form et les codes des champs sont dans config.js.
+-->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #f1f3f4; font-family: Arial, Helvetica, sans-serif; color: #202124; }
+  .ecran { display: none; }
+  .ecran.actif { display: block; }
+
+  /* --- Écrans de questionnaire --- */
+  .carte { max-width: 560px; margin: 16px auto; background: #fff; border-radius: 8px; padding: 20px 18px; border-top: 8px solid #3c4043; }
+  .carte h1 { font-size: 21px; margin: 0 0 12px; }
+  .carte p { font-size: 15px; line-height: 1.5; margin: 0 0 12px; }
+  .bandeau { max-width: 560px; margin: 10px auto 0; font-size: 12px; color: #5f6368; text-align: center; }
+  fieldset { border: 0; padding: 0; margin: 18px 0 0; }
+  legend { font-size: 15px; font-weight: bold; margin-bottom: 8px; line-height: 1.4; }
+  label.opt { display: flex; gap: 10px; align-items: flex-start; padding: 9px 10px; border: 1px solid #dadce0; border-radius: 6px; margin-bottom: 6px; font-size: 15px; cursor: pointer; }
+  label.opt input { margin-top: 2px; }
+  .btn { display: inline-block; margin-top: 18px; background: #3c4043; color: #fff; border: 0; border-radius: 4px; padding: 11px 22px; font-size: 15px; cursor: pointer; }
+  .erreur { color: #b3261e; font-size: 14px; margin-top: 10px; display: none; }
+  .petit { font-size: 13px; color: #5f6368; }
+
+  /* --- Page de résultats simulée (format mobile) --- */
+  .phone { width: 412px; max-width: 100%; margin: 0 auto; background: #fff; min-height: 100vh; }
+  .simu { font-size: 11px; color: #70757a; text-align: center; padding: 4px 0; background: #f8f9fa; }
+  header.serp { padding: 12px 16px 0; }
+  .logo-row { display: flex; align-items: center; justify-content: space-between; }
+  .menu { width: 24px; height: 24px; }
+  .menu span { display: block; height: 2px; background: #5f6368; margin: 4px 2px; border-radius: 1px; }
+  .avatar { width: 24px; height: 24px; border-radius: 50%; background: #8ab4f8; color: #fff; font-size: 13px; display: grid; place-items: center; }
+  .marque-moteur { font-size: 22px; color: #3c4043; letter-spacing: -0.5px; }
+  .search { margin: 12px 0 0; display: flex; align-items: center; gap: 10px; border-radius: 24px; box-shadow: 0 1px 6px rgba(32,33,36,.28); padding: 11px 16px; font-size: 16px; }
+  .search .q { flex: 1; }
+  .search .x { color: #70757a; font-size: 18px; }
+  .search .mag { width: 18px; height: 18px; border: 2px solid #5f6368; border-radius: 50%; position: relative; }
+  .search .mag::after { content: ""; position: absolute; width: 7px; height: 2px; background: #5f6368; right: -6px; bottom: -3px; transform: rotate(45deg); }
+  .tabs { display: flex; gap: 22px; font-size: 14px; color: #5f6368; padding: 14px 2px 0; border-bottom: 1px solid #ebebeb; overflow: hidden; white-space: nowrap; }
+  .tabs span { padding-bottom: 10px; }
+  .tabs .on { color: #202124; border-bottom: 3px solid #202124; font-weight: bold; }
+  main.res { padding: 4px 0 24px; }
+  .block { padding: 14px 16px; border-bottom: 8px solid #f1f3f4; }
+  .cliquable { cursor: pointer; }
+  .sponso { font-size: 14px; font-weight: bold; margin-bottom: 10px; }
+  .src { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .fav { width: 26px; height: 26px; border-radius: 50%; border: 1px solid #dadce0; display: grid; place-items: center; font-size: 13px; font-weight: bold; color: #fff; flex: none; }
+  .src-name { font-size: 14px; line-height: 18px; }
+  .src-url { font-size: 12px; color: #4d5156; line-height: 16px; }
+  .title { color: #1a0dab; font-size: 18px; line-height: 24px; margin: 4px 0; }
+  .desc { font-size: 14px; line-height: 21px; color: #4d5156; }
+  .meta { font-size: 13px; color: #4d5156; margin-top: 6px; }
+  .stars { color: #e7711b; letter-spacing: 1px; }
+  .sitelinks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .sitelinks span { background: #f1f3f4; border-radius: 16px; padding: 7px 12px; font-size: 13px; color: #1a0dab; }
+  .paa h3 { font-size: 18px; font-weight: normal; margin: 0 0 6px; }
+  .paa div { display: flex; justify-content: space-between; padding: 13px 0; border-top: 1px solid #ebebeb; font-size: 15px; }
+  .paa div span:last-child { color: #70757a; }
+  .aucun { display: block; margin: 20px auto 30px; background: #fff; border: 1px solid #dadce0; color: #3c4043; border-radius: 4px; padding: 11px 18px; font-size: 14px; cursor: pointer; }
+  .test-info { max-width: 560px; margin: 16px auto; background: #fff8e1; border: 1px solid #e6c06b; padding: 12px; font-size: 13px; word-break: break-all; }
+</style>
+</head>
+<body>
+
+<!-- 1. Accueil et consentement -->
+<section class="ecran" id="e-accueil">
+  <p class="bandeau">Étude universitaire, Université Paris Cité</p>
+  <div class="carte">
+    <h1>Votre avis sur une recherche en ligne</h1>
+    <p>Bonjour, je suis étudiante en Master 2 Marketing Digital à l'Université Paris Cité. Dans le cadre de mon mémoire, je m'intéresse à la façon dont les internautes perçoivent les résultats d'une recherche en ligne.</p>
+    <p>L'étude dure environ 6 minutes. Il n'y a pas de bonne ou de mauvaise réponse : seul votre avis compte.</p>
+    <p>Vos réponses sont anonymes et utilisées uniquement pour ce mémoire. Vous pouvez arrêter à tout moment. Contact : bertille.lambert@etu.u-paris.fr.</p>
+    <p class="petit">Pour bien voir la page de l'étude, utilisez de préférence votre téléphone.</p>
+    <fieldset>
+      <legend>Acceptez-vous de participer à cette étude ?</legend>
+      <label class="opt"><input type="radio" name="consent" value="oui"> Oui, et c'est la première fois que je participe à cette étude</label>
+      <label class="opt"><input type="radio" name="consent" value="deja"> J'ai déjà participé à cette étude</label>
+      <label class="opt"><input type="radio" name="consent" value="non"> Non, je ne souhaite pas participer</label>
+    </fieldset>
+    <div class="erreur" id="err-accueil">Merci de choisir une réponse.</div>
+    <button class="btn" id="b-accueil">Suivant</button>
+  </div>
+</section>
+
+<!-- 2. Filtre -->
+<section class="ecran" id="e-filtre">
+  <div class="carte">
+    <h1>Une question pour commencer</h1>
+    <fieldset>
+      <legend>Au cours des 12 derniers mois, vous est-il arrivé de chercher un produit sur Google avant de l'acheter en ligne ?</legend>
+      <label class="opt"><input type="radio" name="filtre" value="oui"> Oui</label>
+      <label class="opt"><input type="radio" name="filtre" value="non"> Non</label>
+    </fieldset>
+    <div class="erreur" id="err-filtre">Merci de choisir une réponse.</div>
+    <button class="btn" id="b-filtre">Suivant</button>
+  </div>
+</section>
+
+<!-- 3. Maturité du prospect (avant l'exposition à l'annonce) -->
+<section class="ecran" id="e-maturite">
+  <div class="carte">
+    <h1>Vous et les oreillers</h1>
+    <p>Indiquez votre degré d'accord avec chaque affirmation.</p>
+    <div id="items-maturite"></div>
+    <div class="erreur" id="err-maturite">Merci de répondre aux trois affirmations.</div>
+    <button class="btn" id="b-maturite">Suivant</button>
+  </div>
+</section>
+
+<!-- 4. Consigne -->
+<section class="ecran" id="e-consigne">
+  <div class="carte">
+    <h1>Mise en situation</h1>
+    <p>Imaginez que vous cherchez un nouvel oreiller pour mieux dormir. Vous tapez "oreiller ergonomique" dans Google sur votre téléphone.</p>
+    <p>Sur la page suivante, faites comme vous le feriez vraiment : cliquez sur le résultat qui vous donne le plus envie d'en savoir plus.</p>
+    <p>Si aucun résultat ne vous intéresse, un bouton en bas de la page vous permet de le dire.</p>
+    <button class="btn" id="b-consigne">Voir les résultats</button>
+  </div>
+</section>
+
+<!-- 5. Page de résultats simulée -->
+<section class="ecran" id="e-serp">
+  <div class="phone">
+    <div class="simu">Page simulée pour une étude universitaire</div>
+    <header class="serp">
+      <div class="logo-row">
+        <div class="menu"><span></span><span></span><span></span></div>
+        <div class="marque-moteur">Recherche</div>
+        <div class="avatar">B</div>
+      </div>
+      <div class="search"><div class="mag"></div><div class="q" id="q"></div><div class="x">✕</div></div>
+      <div class="tabs"><span class="on">Tous</span><span>Shopping</span><span>Images</span><span>Vidéos</span><span>Actualités</span></div>
+    </header>
+
+    <main class="res">
+      <section class="block cliquable" data-clic="Annonce Velanor">
+        <div class="sponso">Sponsorisé</div>
+        <div class="src">
+          <div class="fav" style="background:#3b5b8c">V</div>
+          <div><div class="src-name" data-t="ad1.marque"></div><div class="src-url" data-t="ad1.url"></div></div>
+        </div>
+        <div class="title"><span id="manip"></span> | <span data-t="ad1.titre1"></span></div>
+        <div class="desc"><span id="manipDesc"></span> <span data-t="ad1.desc"></span></div>
+        <div class="sitelinks" id="ad1-links"></div>
+      </section>
+
+      <section class="block cliquable" data-clic="Annonce Plumora">
+        <div class="sponso">Sponsorisé</div>
+        <div class="src">
+          <div class="fav" style="background:#6a8f5a">P</div>
+          <div><div class="src-name" data-t="ad2.marque"></div><div class="src-url" data-t="ad2.url"></div></div>
+        </div>
+        <div class="title"><span data-t="ad2.titre2"></span> | <span data-t="ad2.titre1"></span></div>
+        <div class="desc"><span data-t="ad2.descOffre"></span> <span data-t="ad2.desc"></span></div>
+        <div class="sitelinks" id="ad2-links"></div>
+      </section>
+
+      <section class="block cliquable" data-clic="Article Le Mag du Sommeil">
+        <div class="src">
+          <div class="fav" style="background:#b06a3b">L</div>
+          <div><div class="src-name" data-t="org1.site"></div><div class="src-url" data-t="org1.url"></div></div>
+        </div>
+        <div class="title" data-t="org1.titre"></div>
+        <div class="desc" data-t="org1.desc"></div>
+      </section>
+
+      <section class="block paa cliquable" id="paa" data-clic="Autres questions posées">
+        <h3>Autres questions posées</h3>
+      </section>
+
+      <section class="block cliquable" data-clic="Site Atelier Brunvel">
+        <div class="src">
+          <div class="fav" style="background:#7a5aa0">B</div>
+          <div><div class="src-name" data-t="org2.site"></div><div class="src-url" data-t="org2.url"></div></div>
+        </div>
+        <div class="title" data-t="org2.titre"></div>
+        <div class="desc" data-t="org2.desc"></div>
+        <div class="meta"><span class="stars">★★★★☆</span> <span data-t="org2.avis"></span></div>
+      </section>
+
+      <button class="aucun" data-clic="Aucun résultat">Je ne cliquerais sur aucun de ces résultats</button>
+    </main>
+  </div>
+</section>
+
+<!-- 6. Transition vers le questionnaire -->
+<section class="ecran" id="e-suite">
+  <div class="carte">
+    <h1>Merci !</h1>
+    <p>La suite du questionnaire s'ouvre. Si rien ne se passe, <a id="lien-suite" href="#">cliquez ici</a>.</p>
+    <div id="test-url"></div>
+  </div>
+</section>
+
+<!-- 7. Retour d'une personne qui a déjà vu la page -->
+<section class="ecran" id="e-retour">
+  <div class="carte">
+    <h1>Vous avez déjà vu la page de l'étude</h1>
+    <p>Si vous n'avez pas terminé le questionnaire, vous pouvez le reprendre ici :</p>
+    <a class="btn" id="lien-reprise" href="#">Reprendre le questionnaire</a>
+    <p class="petit" style="margin-top:14px">Si vous l'avez déjà envoyé, merci pour votre participation, il n'y a rien d'autre à faire.</p>
+  </div>
+</section>
+
+<!-- 8. Fin (refus, déjà participé, filtre) -->
+<section class="ecran" id="e-fin">
+  <div class="carte">
+    <h1>Merci</h1>
+    <p id="msg-fin">Merci pour votre temps.</p>
+  </div>
+</section>
+
+<script src="config.js"></script>
+<script>
+// ---------------------------------------------------------------
+// Textes de la page de résultats (repris de stimuli/maquette_serp_oreiller.html)
+// ---------------------------------------------------------------
+const TEXTES = {
+  requete: "oreiller ergonomique",
+  ad1: {
+    marque: "Velanor",
+    url: "https://www.velanor.fr › oreillers",
+    titre1: "Oreiller Ergonomique Velanor",
+    titre2: { A: "-20 % : Plus Que 3 Jours", B: "-20 % Sur Toute La Gamme" },
+    descOffre: { A: "Offre valable encore 3 jours.", B: "Offre valable sur toute la gamme." },
+    desc: "Dès 59 €. Oreiller à mémoire de forme pour soulager la nuque. Livraison offerte.",
+    liens: ["Nos oreillers", "Comment choisir", "Avis clients", "Livraison"]
+  },
+  ad2: {
+    marque: "Plumora",
+    url: "https://www.plumora.fr › oreillers",
+    titre1: "Oreiller Ergonomique Plumora",
+    titre2: "-20 % Sur Tous Nos Modèles",
+    descOffre: "Remise sur tous nos modèles.",
+    desc: "À partir de 59 €. Mémoire de forme qui soulage le cou. Livraison gratuite.",
+    liens: ["Nos modèles", "Guide d'achat", "Avis de nos clients", "Expédition"]
+  },
+  org1: {
+    site: "Le Mag du Sommeil",
+    url: "https://www.lemagdusommeil.fr › comparatif",
+    titre: "Oreiller ergonomique : comment bien le choisir ?",
+    desc: "Position de sommeil, fermeté, matière : nos conseils pour choisir un oreiller ergonomique adapté à votre nuque et à votre budget."
+  },
+  paa: [
+    "Quel oreiller choisir quand on a mal aux cervicales ?",
+    "Combien de temps faut-il pour s'habituer à un oreiller ergonomique ?",
+    "Quelle est la durée de vie d'un oreiller ?"
+  ],
+  org2: {
+    site: "Atelier Brunvel",
+    url: "https://www.atelierbrunvel.fr › oreillers",
+    titre: "Oreillers ergonomiques et cervicaux - Atelier Brunvel",
+    desc: "Découvrez notre sélection d'oreillers ergonomiques : mémoire de forme, latex, ajustables. Conseils d'experts en literie.",
+    avis: "4,2 · 318 avis"
+  }
+};
+
+const ACCORD5 = ["Pas du tout d'accord", "Plutôt pas d'accord", "Ni d'accord ni pas d'accord", "Plutôt d'accord", "Tout à fait d'accord"];
+const MATURITE = [
+  "J'avais prévu de changer d'oreiller prochainement.",
+  "Mon oreiller actuel ne me convient pas vraiment.",
+  "J'ai déjà cherché des informations sur les oreillers ces derniers mois."
+];
+
+// ---------------------------------------------------------------
+// Mode test et version
+// ---------------------------------------------------------------
+const params = new URLSearchParams(location.search);
+const TEST = params.get("test") === "1";
+const CLE = "etude_oreiller_v1";
+const memo = TEST ? {} : JSON.parse(localStorage.getItem(CLE) || "{}");
+
+let version = memo.version;
+if (TEST && (params.get("v") === "A" || params.get("v") === "B")) version = params.get("v");
+if (!version) version = Math.random() < 0.5 ? "A" : "B";
+if (!TEST) { memo.version = version; localStorage.setItem(CLE, JSON.stringify(memo)); }
+
+const reponses = { maturite: [] };
+let debutSerp = 0;
+
+function montrer(id) {
+  document.querySelectorAll(".ecran").forEach(e => e.classList.remove("actif"));
+  document.getElementById(id).classList.add("actif");
+  window.scrollTo(0, 0);
+}
+function choix(nom) {
+  const el = document.querySelector('input[name="' + nom + '"]:checked');
+  return el ? el.value : null;
+}
+function fin(message) {
+  document.getElementById("msg-fin").textContent = message;
+  montrer("e-fin");
+}
+
+// --- Remplissage de la page de résultats ---
+function get(path) { return path.split(".").reduce((o, k) => o[k], TEXTES); }
+document.querySelectorAll("[data-t]").forEach(el => { el.textContent = get(el.dataset.t); });
+document.getElementById("q").textContent = TEXTES.requete;
+document.getElementById("manip").textContent = TEXTES.ad1.titre2[version];
+document.getElementById("manipDesc").textContent = TEXTES.ad1.descOffre[version];
+function liens(id, list) {
+  const box = document.getElementById(id);
+  list.forEach(t => { const s = document.createElement("span"); s.textContent = t; box.appendChild(s); });
+}
+liens("ad1-links", TEXTES.ad1.liens);
+liens("ad2-links", TEXTES.ad2.liens);
+TEXTES.paa.forEach(t => {
+  const d = document.createElement("div");
+  d.innerHTML = "<span></span><span>⌄</span>";
+  d.firstChild.textContent = t;
+  document.getElementById("paa").appendChild(d);
+});
+
+// --- Questions de maturité ---
+const boite = document.getElementById("items-maturite");
+MATURITE.forEach((texte, i) => {
+  const fs = document.createElement("fieldset");
+  const lg = document.createElement("legend");
+  lg.textContent = texte;
+  fs.appendChild(lg);
+  ACCORD5.forEach((lib, j) => {
+    const lab = document.createElement("label");
+    lab.className = "opt";
+    lab.innerHTML = '<input type="radio" name="mat' + i + '" value="' + (j + 1) + '"> <span></span>';
+    lab.querySelector("span").textContent = lib;
+    fs.appendChild(lab);
+  });
+  boite.appendChild(fs);
+});
+
+// --- Navigation ---
+document.getElementById("b-accueil").onclick = () => {
+  const c = choix("consent");
+  if (!c) { document.getElementById("err-accueil").style.display = "block"; return; }
+  if (c === "non") return fin("Merci pour votre temps. Vous pouvez fermer cette page.");
+  if (c === "deja") return fin("Merci, votre participation a déjà été prise en compte. Vous pouvez fermer cette page.");
+  montrer("e-filtre");
+};
+document.getElementById("b-filtre").onclick = () => {
+  const f = choix("filtre");
+  if (!f) { document.getElementById("err-filtre").style.display = "block"; return; }
+  if (f === "non") return fin("Merci ! Cette étude concerne les personnes qui ont déjà cherché un produit sur Google avant de l'acheter en ligne. Vous pouvez fermer cette page.");
+  montrer("e-maturite");
+};
+document.getElementById("b-maturite").onclick = () => {
+  const m = [0, 1, 2].map(i => choix("mat" + i));
+  if (m.includes(null)) { document.getElementById("err-maturite").style.display = "block"; return; }
+  reponses.maturite = m;
+  montrer("e-consigne");
+};
+document.getElementById("b-consigne").onclick = () => {
+  montrer("e-serp");
+  debutSerp = performance.now();
+};
+
+// --- Clic sur un résultat : construction du lien vers le Google Form prérempli ---
+function lienFormulaire(clic, secondes) {
+  const F = window.FORMULAIRE;
+  const c = F.champs;
+  const p = new URLSearchParams();
+  p.set("usp", "pp_url");
+  p.set(c.code, version);
+  p.set(c.clic, clic);
+  p.set(c.temps, secondes.toFixed(1).replace(".", ","));
+  p.set(c.appareil, window.innerWidth < 700 ? "mobile" : "ordinateur");
+  p.set(c.mat1, reponses.maturite[0]);
+  p.set(c.mat2, reponses.maturite[1]);
+  p.set(c.mat3, reponses.maturite[2]);
+  return F.url + "?" + p.toString();
+}
+
+let dejaClique = false;
+document.querySelectorAll("[data-clic]").forEach(el => {
+  el.addEventListener("click", () => {
+    if (dejaClique) return;
+    dejaClique = true;
+    const secondes = (performance.now() - debutSerp) / 1000;
+    const url = lienFormulaire(el.dataset.clic, secondes);
+    document.getElementById("lien-suite").href = url;
+    montrer("e-suite");
+    if (TEST) {
+      const t = document.createElement("div");
+      t.className = "test-info";
+      t.textContent = "Mode test : version " + version + ", clic = " + el.dataset.clic + ", " + secondes.toFixed(1) + " s. Lien qui serait ouvert : " + url;
+      document.getElementById("test-url").appendChild(t);
+      return;
+    }
+    memo.url = url;
+    localStorage.setItem(CLE, JSON.stringify(memo));
+    setTimeout(() => { location.href = url; }, 600);
+  });
+});
+
+// --- Démarrage ---
+if (!TEST && memo.url) {
+  document.getElementById("lien-reprise").href = memo.url;
+  montrer("e-retour");
+} else {
+  montrer("e-accueil");
+}
+if (TEST) {
+  document.title = "TEST version " + version;
+  // ?test=1&ecran=serp : affiche directement un écran (accueil, filtre, maturite, consigne, serp)
+  const ecran = params.get("ecran");
+  if (ecran && document.getElementById("e-" + ecran)) {
+    montrer("e-" + ecran);
+    if (ecran === "serp") { debutSerp = performance.now(); reponses.maturite = ["3", "3", "3"]; }
+  }
+}
+</script>
+</body>
+</html>
