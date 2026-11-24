@@ -10,7 +10,7 @@
   Déroulé : accueil et consentement, filtre, 3 questions de maturité, consigne,
   page de résultats simulée (clic réel), puis redirection vers le Google Form prérempli.
   La version (A ou B) est tirée au hasard et gardée si la personne recharge la page.
-  Mode test : ajouter ?test=1 (et &v=A ou &v=B pour forcer une version,
+  Mode test : ajouter ?test=1 (et &v=A ou &v=B pour forcer une version, &pos=1 ou &pos=2 pour la position de Velanor,
   &ecran=serp pour aller directement à la page de résultats).
   En mode test, rien n'est envoyé : l'adresse du formulaire prérempli s'affiche.
   L'adresse du Google Form et les codes des champs sont dans config.js.
@@ -145,7 +145,7 @@
     </header>
 
     <main class="res">
-      <section class="block cliquable" data-clic="Annonce Velanor">
+      <section class="block cliquable" id="annonce-v" data-clic="Annonce Velanor">
         <div class="sponso">Sponsorisé</div>
         <div class="src">
           <div class="fav" style="background:#3b5b8c">V</div>
@@ -156,7 +156,7 @@
         <div class="sitelinks" id="ad1-links"></div>
       </section>
 
-      <section class="block cliquable" data-clic="Annonce Plumora">
+      <section class="block cliquable" id="annonce-p" data-clic="Annonce Plumora">
         <div class="sponso">Sponsorisé</div>
         <div class="src">
           <div class="fav" style="background:#6a8f5a">P</div>
@@ -285,7 +285,12 @@ const memo = TEST ? {} : JSON.parse(localStorage.getItem(CLE) || "{}");
 let version = memo.version;
 if (TEST && (params.get("v") === "A" || params.get("v") === "B")) version = params.get("v");
 if (!version) version = Math.random() < 0.5 ? "A" : "B";
-if (!TEST) { memo.version = version; localStorage.setItem(CLE, JSON.stringify(memo)); }
+// Position de l'annonce Velanor (1 ou 2), tirée au hasard séparément de la version
+// (contrebalancement : neutralise l'effet de la position sur le clic).
+let position = memo.position;
+if (TEST && (params.get("pos") === "1" || params.get("pos") === "2")) position = params.get("pos");
+if (!position) position = Math.random() < 0.5 ? "1" : "2";
+if (!TEST) { memo.version = version; memo.position = position; localStorage.setItem(CLE, JSON.stringify(memo)); }
 
 const reponses = { maturite: [] };
 let debutSerp = 0;
@@ -313,6 +318,11 @@ document.getElementById("manipDesc").textContent = TEXTES.ad1.descOffre[version]
 function liens(id, list) {
   const box = document.getElementById(id);
   list.forEach(t => { const s = document.createElement("span"); s.textContent = t; box.appendChild(s); });
+}
+// Velanor en position 2 : on place l'annonce Plumora avant elle
+if (position === "2") {
+  const v = document.getElementById("annonce-v");
+  v.parentNode.insertBefore(document.getElementById("annonce-p"), v);
 }
 liens("ad1-links", TEXTES.ad1.liens);
 liens("ad2-links", TEXTES.ad2.liens);
@@ -378,6 +388,7 @@ function lienFormulaire(clic, secondes) {
   p.set(c.mat1, reponses.maturite[0]);
   p.set(c.mat2, reponses.maturite[1]);
   p.set(c.mat3, reponses.maturite[2]);
+  p.set(c.position, position);
   return F.url + "?" + p.toString();
 }
 
@@ -393,7 +404,7 @@ document.querySelectorAll("[data-clic]").forEach(el => {
     if (TEST) {
       const t = document.createElement("div");
       t.className = "test-info";
-      t.textContent = "Mode test : version " + version + ", clic = " + el.dataset.clic + ", " + secondes.toFixed(1) + " s. Lien qui serait ouvert : " + url;
+      t.textContent = "Mode test : version " + version + ", Velanor en position " + position + ", clic = " + el.dataset.clic + ", " + secondes.toFixed(1) + " s. Lien qui serait ouvert : " + url;
       document.getElementById("test-url").appendChild(t);
       return;
     }
@@ -411,7 +422,7 @@ if (!TEST && memo.url) {
   montrer("e-accueil");
 }
 if (TEST) {
-  document.title = "TEST version " + version;
+  document.title = "TEST version " + version + ", position " + position;
   // ?test=1&ecran=serp : affiche directement un écran (accueil, filtre, maturite, consigne, serp)
   const ecran = params.get("ecran");
   if (ecran && document.getElementById("e-" + ecran)) {

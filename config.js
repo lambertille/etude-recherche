@@ -9,6 +9,7 @@ window.FORMULAIRE = {
     appareil: "entry.3",
     mat1: "entry.4",
     mat2: "entry.5",
-    mat3: "entry.6"
+    mat3: "entry.6",
+    position: "entry.7"
   }
 };
